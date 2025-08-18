@@ -164,6 +164,11 @@ IPL A-Tone
         markup.add("👨‍💼 Звʼязок з менеджером", "⬅️ Повернутись в меню")
         bot.send_message(chat_id, text, reply_markup=markup)
         user_data.pop(chat_id, None)
+        
+        if message.text == "⬅️ Повернутись в меню":
+        bot.send_message(chat_id, "Повертаємось в меню:", reply_markup=main_menu())
+        user_data.pop(chat_id, None)
+        return
 
 # Вебхук для Telegram
 @app.route(f"/{TOKEN}", methods=["POST"])
@@ -184,4 +189,5 @@ if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=f"{RENDER_URL}/{TOKEN}")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
 
