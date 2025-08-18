@@ -151,6 +151,7 @@ def handle_answers(message):
         salary_per_procedure = user_data[chat_id]['price'] * user_data[chat_id]['salary_percent']/100
 
         text = f"""
+IPL A-Tone 
 Вартість апарату: {user_data[chat_id]['cost']}€
 Кількість процедур в місяць: {user_data[chat_id]['count']}
 Вартість процедури: {user_data[chat_id]['price']} грн
@@ -183,3 +184,4 @@ if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=f"{RENDER_URL}/{TOKEN}")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
