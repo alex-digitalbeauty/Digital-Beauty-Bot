@@ -1,3 +1,1 @@
-web: gunicorn bot:app
-
 
