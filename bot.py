@@ -1,13 +1,19 @@
 import os
+import logging
 from flask import Flask, request
 import telebot
 from telebot import types
 
+# Логирование
+logging.basicConfig(level=logging.INFO)
+
 TOKEN = os.getenv("BOT_TOKEN")
+if not TOKEN:
+    raise Exception("BOT_TOKEN не задано")
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# ID администратора (замени на свой)
+# ID администратора
 ADMIN_ID = 535869416
 
 # Конфигурация
@@ -20,7 +26,7 @@ config = {
     }
 }
 
-# Словарь для хранения данных пользователя
+# Данные пользователей
 user_data = {}
 
 # Главное меню
@@ -76,12 +82,13 @@ def device_selected(message):
     user_data[chat_id] = {"device": message.text}
     ask_question_step(chat_id, 1)
 
-# Универсальный обработчик всех сообщений
+# Универсальный обработчик сообщений
 @bot.message_handler(func=lambda m: True)
 def handle_answers(message):
     chat_id = message.chat.id
+    logging.info(f"Received message from {chat_id}: {message.text}")
 
-    # 🔹 Админ-команды
+    # Админ-команды
     if message.text.startswith("/"):
         if chat_id != ADMIN_ID:
             bot.send_message(chat_id, "У вас немає прав ❌")
@@ -115,7 +122,7 @@ def handle_answers(message):
             bot.send_message(chat_id, "❌ Невідома команда")
         return
 
-    # Кнопка "Вернуться в меню"
+    # Вернуться в меню
     if message.text == "⬅️ Повернутись в меню":
         bot.send_message(chat_id, "Повертаємось в меню:", reply_markup=main_menu())
         user_data.pop(chat_id, None)
@@ -126,44 +133,32 @@ def handle_answers(message):
 
     step = user_data[chat_id].get('step', 0)
 
-    # Шаги
-    if step == 1:
-        try:
+    # Обработка шагов
+    try:
+        if step == 1:
             val = float(message.text.replace("€", "").replace(" ", ""))
             user_data[chat_id]['cost'] = val
             ask_question_step(chat_id, 2)
-        except:
-            bot.send_message(chat_id, "Помилка! Введіть число (€):")
-    elif step == 2:
-        try:
+        elif step == 2:
             val = int(message.text.replace("процедур", "").strip())
             user_data[chat_id]['count'] = val
             ask_question_step(chat_id, 3)
-        except:
-            bot.send_message(chat_id, "Помилка! Введіть число процедур:")
-    elif step == 3:
-        try:
+        elif step == 3:
             val = float(message.text.replace("грн","").replace(" ",""))
             user_data[chat_id]['price'] = val
             ask_question_step(chat_id, 4)
-        except:
-            bot.send_message(chat_id, "Помилка! Введіть число (грн):")
-    elif step == 4:
-        try:
+        elif step == 4:
             val = float(message.text.replace("%",""))
             user_data[chat_id]['salary_percent'] = val
-        except:
-            bot.send_message(chat_id, "Помилка! Введіть число %:")
-            return
 
-        # 🔹 Расчет окупаемости
-        cost_uah = user_data[chat_id]['cost'] * config["USD_UAH"]
-        net_profit = (user_data[chat_id]['price'] * user_data[chat_id]['count']) - \
-                     (user_data[chat_id]['price'] * user_data[chat_id]['salary_percent']/100 * user_data[chat_id]['count'])
-        months = round(cost_uah / net_profit, 1)
-        salary_per_procedure = user_data[chat_id]['price'] * user_data[chat_id]['salary_percent']/100
+            # Расчет окупаемости
+            cost_uah = user_data[chat_id]['cost'] * config["USD_UAH"]
+            net_profit = (user_data[chat_id]['price'] * user_data[chat_id]['count']) - \
+                         (user_data[chat_id]['price'] * user_data[chat_id]['salary_percent']/100 * user_data[chat_id]['count'])
+            months = round(cost_uah / net_profit, 1)
+            salary_per_procedure = user_data[chat_id]['price'] * user_data[chat_id]['salary_percent']/100
 
-        text = f"""
+            text = f"""
 {user_data[chat_id]['device']}
 Вартість апарату: {user_data[chat_id]['cost']}€
 Курс: {config['USD_UAH']} грн/$
@@ -174,10 +169,12 @@ def handle_answers(message):
 
 Для звʼязку з менеджером: @alex_digital_beauty
 """
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("👨‍💼 Звʼязок з менеджером", "⬅️ Повернутись в меню")
-        bot.send_message(chat_id, text, reply_markup=markup)
-        user_data.pop(chat_id, None)
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add("👨‍💼 Звʼязок з менеджером", "⬅️ Повернутись в меню")
+            bot.send_message(chat_id, text, reply_markup=markup)
+            user_data.pop(chat_id, None)
+    except:
+        bot.send_message(chat_id, "❌ Помилка вводу. Спробуйте ще раз.")
 
 # Вебхук для Telegram
 @app.route(f"/{TOKEN}", methods=["POST"])
@@ -187,17 +184,16 @@ def webhook():
     bot.process_new_updates([update])
     return "!", 200
 
-# Проверка на Render
+# Проверка работы
 @app.route("/")
 def index():
     return "Бот працює через webhook!", 200
 
 if __name__ == "__main__":
-    # Render hostname
     HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
     if not HOSTNAME:
         raise Exception("RENDER_EXTERNAL_HOSTNAME не задано")
     bot.remove_webhook()
     bot.set_webhook(url=f"https://{HOSTNAME}/{TOKEN}")
+    logging.info(f"Webhook встановлено на https://{HOSTNAME}/{TOKEN}")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
